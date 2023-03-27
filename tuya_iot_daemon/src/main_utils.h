@@ -10,10 +10,11 @@
 #include "tuya_utils.h"
 
 struct arguments {
-  char *args[3];
+	char *args[3];
 };
 
 error_t parse_opt(int key, char *arg, struct argp_state *state);
 void sig_handler(int sig);
 uint64_t memory_cb(struct ubus_request *req, int type, struct blob_attr *msg);
 int ubus_get_memory(struct ubus_context **ctx, int *free_memory);
+void tuya_loop(tuya_mqtt_context_t **client, struct ubus_context **ctx);

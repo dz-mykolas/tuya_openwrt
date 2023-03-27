@@ -9,5 +9,6 @@
 void on_connected(tuya_mqtt_context_t *context, void *user_data);
 void on_disconnect(tuya_mqtt_context_t *context, void *user_data);
 void on_messages(tuya_mqtt_context_t *context, void *user_data, const tuyalink_message_t *msg);
-void ram_report_free(tuya_mqtt_context_t *context, char* device_id);
+void ram_report_free(tuya_mqtt_context_t *context, char *device_id);
 int tuya_write_file(char *data, char *cwd);
+int tuya_init(tuya_mqtt_context_t **client, char **argv);
