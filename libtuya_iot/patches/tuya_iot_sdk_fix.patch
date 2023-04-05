@@ -1,0 +1,46 @@
+Index: libtuya_iot-1.0.0/include/tuyalink_core.h
+===================================================================
+--- libtuya_iot-1.0.0.orig/include/tuyalink_core.h
++++ libtuya_iot-1.0.0/include/tuyalink_core.h
+@@ -200,6 +200,8 @@ bool tuya_mqtt_connected(tuya_mqtt_conte
+ 
+ int tuyalink_thing_data_model_get(tuya_mqtt_context_t* context, const char* device_id);
+ 
++int tuyalink_thing_action_report(tuya_mqtt_context_t* context, const char* device_id, const char* data);
++
+ int tuyalink_thing_property_report(tuya_mqtt_context_t* context, const char* device_id, const char* data);
+ 
+ int tuyalink_thing_property_report_with_ack(tuya_mqtt_context_t* context, const char* device_id, const char* data);
+Index: libtuya_iot-1.0.0/src/tuyalink_core.c
+===================================================================
+--- libtuya_iot-1.0.0.orig/src/tuyalink_core.c
++++ libtuya_iot-1.0.0/src/tuyalink_core.c
+@@ -727,6 +727,21 @@ int tuyalink_thing_data_model_get(tuya_m
+ 	return tuyalink_message_send(context, &message);
+ }
+ 
++int tuyalink_thing_action_report(tuya_mqtt_context_t* context, const char* device_id, const char* data)
++{
++	if(context == NULL || data == NULL) {
++		return OPRT_INVALID_PARM;
++	}
++
++	tuyalink_message_t message = {
++		.type = THING_TYPE_ACTION_EXECUTE_RSP,
++		.device_id = (char*)device_id,
++		.data_string = (char*)data,
++		.ack = false
++	};
++	return tuyalink_message_send(context, &message);
++}
++
+ int tuyalink_thing_property_report(tuya_mqtt_context_t* context, const char* device_id, const char* data)
+ {
+ 	if(context == NULL || data == NULL) {
+@@ -1068,4 +1083,4 @@ int tuyalink_tag_delete(tuya_mqtt_contex
+ 		.ack = false
+ 	};
+ 	return tuyalink_message_send(context, &message);
+-}
+\ No newline at end of file
++}
