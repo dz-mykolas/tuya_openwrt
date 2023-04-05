@@ -12,9 +12,6 @@ static char args_doc[]		     = "product_id device_id device_secret";
 static struct argp_option options[]  = { { 0 } };
 static struct argp argp		     = { options, parse_opt, args_doc, "Simple daemon" };
 
-/* UBUS */
-static struct ubus_context *ctx;
-
 /* TUYA */
 tuya_mqtt_context_t client_instance;
 
@@ -39,10 +36,10 @@ int main(int argc, char **argv)
 
 	/* INFINITE LOOP */
 	if (exit == 0)
-		tuya_loop(&client, &ctx);
+		tuya_loop(&client);
 
 	/* DISCONNECT */
-	if (program_deinit(&client, &ctx))
+	if (program_deinit(&client))
 		return EXIT_FAILURE;
 	return EXIT_SUCCESS;
 }

@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "daemon_utils.h": "c",
+        "main_utils.h": "c",
+        "assert.h": "c",
+        "ubus_utils.h": "c",
+        "typeinfo": "c"
+    }
+}
