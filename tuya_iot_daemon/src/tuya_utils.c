@@ -69,8 +69,7 @@ void tuya_action_devices(char **buffer)
 
 // TODO: 
 // 1) Cleanup(func, device find better way to assign)
-// 2) Make cJSON for response
-// 3) Check if device exists
+// 2) Make cJSON to cleaner format string for response
 void tuya_action_toggle(char **response, const tuyalink_message_t *msg)
 {
     cJSON *json = cJSON_Parse(msg->data_string);

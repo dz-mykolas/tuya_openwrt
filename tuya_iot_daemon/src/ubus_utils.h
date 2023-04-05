@@ -45,6 +45,7 @@ enum {
 static void board_cb(struct ubus_request *req, int type, struct blob_attr *msg);
 static void devices_cb(struct ubus_request *req, int type, struct blob_attr *msg);
 
+int ubus_connect_helper(struct ubus_context **ctx, char *object, uint32_t *id);
 int ubus_get_memory(int *free_memory);
-void ubus_esp_get_devices(char **buffer);
-void ubus_esp_toggle(char *func, char *device, int pin, int *response, char **msg);
+int ubus_esp_get_devices(char **buffer);
+int ubus_esp_toggle(char *func, char *device, int pin, int *response, char **msg);

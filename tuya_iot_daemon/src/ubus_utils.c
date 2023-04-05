@@ -82,19 +82,31 @@ static void response_handler(struct ubus_request *req, int type, struct blob_att
     response_data->msg = blobmsg_get_string(tb[ATTR_MSG]);
 }
 
+int ubus_connect_helper(struct ubus_context **ctx, char *object, uint32_t *id)
+{
+    int ret = 1;
+    if (!(*ctx = ubus_connect(NULL)))
+        log_event(LOGS_ERROR, "Error while connecting to ubus");
+    else if (ubus_lookup_id(*ctx, object, id) == 1) {
+        ubus_free(*ctx);
+        log_event(LOGS_ERROR, "Failed to find system object on ubus");
+    }
+	else
+        ret = 0;
+    return ret;
+}
+
 int ubus_get_memory(int *free_memory)
 {
     struct ubus_context *ctx;
 	uint32_t id;
 	struct MemData memory = { 0 };
     int ret = 1;
-	if (!(ctx = ubus_connect(NULL)))
-        log_event(LOGS_ERROR, "Error while connecting to ubus");
-    else if (ubus_lookup_id(ctx, "system", &id) == 1)
-        log_event(LOGS_ERROR, "Failed to find system object on ubus");
-	else if (ubus_invoke(ctx, id, "info", NULL, board_cb, &memory, 1000) == 1)
+    if (ubus_connect_helper(&ctx, "system", &id) == 1)
+        return ret;
+    if (ubus_invoke(ctx, id, "info", NULL, board_cb, &memory, 1000) == 1)
 		log_event(LOGS_ERROR, "Failed to request system info");
-	else {
+    else {
 		*free_memory = memory.free;
 		ret = 0;
 	}
@@ -102,53 +114,25 @@ int ubus_get_memory(int *free_memory)
 	return ret;
 }
 
-// void ubus_esp_get_devices(char **buffer)
-// {
-//     struct ubus_context *ctx;
-//     uint32_t id;
-//     struct DevicesData devices_data = { 0 };
-//     if (!(ctx = ubus_connect(NULL)))
-//         log_event(LOGS_ERROR, "Error while connecting to ubus");
-//     else if (ubus_lookup_id(ctx, "usb_controller", &id) == 1)
-//         log_event(LOGS_ERROR, "Failed to find system object on ubus");
-// 	else if (ubus_invoke(ctx, id, "get", NULL, devices_cb, &devices_data, 1000) == 1)
-// 		log_event(LOGS_ERROR, "Failed to request system info");
-// 	else {
-// 		snprintf(buffer, 300, "%s", devices_data.devices);
-// 	}
-//     ubus_free(ctx);
-// }
-
-int ubus_connect_helper(struct ubus_context **ctx, char *object, uint32_t *id)
-{
-    int ret = 1;
-    if (!(*ctx = ubus_connect(NULL)))
-        log_event(LOGS_ERROR, "Error while connecting to ubus");
-    else if (ubus_lookup_id(*ctx, object, id) == 1)
-        log_event(LOGS_ERROR, "Failed to find system object on ubus");
-	else
-        ret = 0;
-    return ret;
-}
-
-void ubus_esp_get_devices(char **buffer)
+int ubus_esp_get_devices(char **buffer)
 {
     struct DevicesData devices_data = { 0 };
     struct ubus_context *ctx;
     uint32_t id;
-    int ret = 0;
-    if (ubus_connect_helper(&ctx, "usb_controller", &id) == 1) {
-        ret = 1;
-    } else if (ubus_invoke(ctx, id, "get", NULL, devices_cb, &devices_data, 1000) == 1) {
+    int ret = 1;
+    if (ubus_connect_helper(&ctx, "usb_controller", &id) == 1)
+        return ret;
+    else if (ubus_invoke(ctx, id, "get", NULL, devices_cb, &devices_data, 1000) == 1)
 		log_event(LOGS_ERROR, "Failed to request device info");
-        ret = 1;
-    } else {
+    else {
 		snprintf(buffer, 300, "%s", devices_data.devices);
+        ret = 0;
 	}
     ubus_free(ctx);
+    return ret;
 }
 
-void ubus_esp_toggle(char *func, char *device, int pin, int *response, char **msg)
+int ubus_esp_toggle(char *func, char *device, int pin, int *response, char **msg)
 {
     cJSON *args = cJSON_CreateObject();
     cJSON_AddStringToObject(args, "name", device);
@@ -161,16 +145,14 @@ void ubus_esp_toggle(char *func, char *device, int pin, int *response, char **ms
     struct ResponseData response_data = { 0 };
     struct ubus_context *ctx;
     uint32_t id;
-    int ret = 0;
+    int ret = 1;
     if (ubus_connect_helper(&ctx, "usb_controller", &id) == 1) {
-        ret = 1;
+        return ret;
     } else if (ubus_invoke(ctx, id, func, b.head, response_handler, &response_data, 2100) == 1) {
         log_event(LOGS_ERROR, "Failed to invoke ubus toggle");
-        ret = 1;
     } else if (response_data.msg == NULL && response_data.response == 0) {
         snprintf(msg, 100, "%s", "Device does not exist");
         *response = 1;
-        ret = 1;
     } else {
         snprintf(msg, 100, "%s", response_data.msg);
         *response = response_data.response;
