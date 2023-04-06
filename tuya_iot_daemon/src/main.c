@@ -36,10 +36,10 @@ int main(int argc, char **argv)
 
 	/* INFINITE LOOP */
 	if (exit == 0)
-		tuya_loop(&client);
+		program_loop(&client);
 
 	/* DISCONNECT */
-	if (program_deinit(&client))
+	if (tuya_deinit(&client))
 		return EXIT_FAILURE;
 	return EXIT_SUCCESS;
 }

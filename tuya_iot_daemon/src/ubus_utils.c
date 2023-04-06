@@ -20,7 +20,7 @@ static const struct blobmsg_policy device_toggle_policy[__ATTR_MAX] = {
     [ATTR_MSG] = { .name = "msg", .type = BLOBMSG_TYPE_STRING },
 };
 
-static void board_cb(struct ubus_request *req, int type, struct blob_attr *msg)
+static void memory_cb(struct ubus_request *req, int type, struct blob_attr *msg)
 {
 	struct MemData *memory_data = (struct MemData *)req->priv;
 	struct blob_attr *tb[__INFO_MAX];
@@ -104,7 +104,7 @@ int ubus_get_memory(int *free_memory)
     int ret = 1;
     if (ubus_connect_helper(&ctx, "system", &id) == 1)
         return ret;
-    if (ubus_invoke(ctx, id, "info", NULL, board_cb, &memory, 1000) == 1)
+    if (ubus_invoke(ctx, id, "info", NULL, memory_cb, &memory, 1000) == 1)
 		log_event(LOGS_ERROR, "Failed to request system info");
     else {
 		*free_memory = memory.free;
@@ -122,7 +122,7 @@ int ubus_esp_get_devices(char **buffer)
     int ret = 1;
     if (ubus_connect_helper(&ctx, "usb_controller", &id) == 1)
         return ret;
-    else if (ubus_invoke(ctx, id, "get", NULL, devices_cb, &devices_data, 1000) == 1)
+    if (ubus_invoke(ctx, id, "get", NULL, devices_cb, &devices_data, 1000) == 1)
 		log_event(LOGS_ERROR, "Failed to request device info");
     else {
 		snprintf(buffer, 300, "%s", devices_data.devices);
@@ -134,21 +134,25 @@ int ubus_esp_get_devices(char **buffer)
 
 int ubus_esp_toggle(char *func, char *device, int pin, int *response, char **msg)
 {
-    cJSON *args = cJSON_CreateObject();
-    cJSON_AddStringToObject(args, "name", device);
-    cJSON_AddNumberToObject(args, "pin", pin);
-    struct blob_buf b = {};
-    blob_buf_init(&b, 0);
-    char *args_json = cJSON_PrintUnformatted(args);
-    blobmsg_add_json_from_string(&b, args_json);
-
     struct ResponseData response_data = { 0 };
     struct ubus_context *ctx;
     uint32_t id;
+    struct blob_buf b = {};
+    blob_buf_init(&b, 0);
+
+    cJSON *args = NULL;
+    char *args_json = NULL;
     int ret = 1;
-    if (ubus_connect_helper(&ctx, "usb_controller", &id) == 1) {
+
+    args = cJSON_CreateObject();
+    cJSON_AddStringToObject(args, "name", device);
+    cJSON_AddNumberToObject(args, "pin", pin);
+    args_json = cJSON_PrintUnformatted(args);
+    blobmsg_add_json_from_string(&b, args_json);
+    
+    if (ubus_connect_helper(&ctx, "usb_controller", &id) == 1)
         return ret;
-    } else if (ubus_invoke(ctx, id, func, b.head, response_handler, &response_data, 2100) == 1) {
+    if (ubus_invoke(ctx, id, func, b.head, response_handler, &response_data, 2100) == 1) {
         log_event(LOGS_ERROR, "Failed to invoke ubus toggle");
     } else if (response_data.msg == NULL && response_data.response == 0) {
         snprintf(msg, 100, "%s", "Device does not exist");
@@ -157,6 +161,7 @@ int ubus_esp_toggle(char *func, char *device, int pin, int *response, char **msg
         snprintf(msg, 100, "%s", response_data.msg);
         *response = response_data.response;
     }
+
     cJSON_Delete(args);
     free(args_json);
     blob_buf_free(&b);

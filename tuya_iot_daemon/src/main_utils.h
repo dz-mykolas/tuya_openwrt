@@ -13,5 +13,4 @@ struct arguments {
 
 error_t parse_opt(int key, char *arg, struct argp_state *state);
 void sig_handler(int sig);
-void tuya_loop(tuya_mqtt_context_t **client);
-int program_deinit(tuya_mqtt_context_t **client);
+void program_loop(tuya_mqtt_context_t **client);

@@ -1,22 +1,11 @@
 #include "main_utils.h"
 
 volatile sig_atomic_t running = 1;
-void tuya_loop(tuya_mqtt_context_t **client)
+void program_loop(tuya_mqtt_context_t **client)
 {
 	while (running) {
 		tuya_mqtt_loop(*client);
 	}
-}
-
-int program_deinit(tuya_mqtt_context_t **client)
-{
-	int exit = 0;
-	if (tuya_mqtt_disconnect(*client) || tuya_mqtt_deinit(*client)) {
-		log_event(LOGS_ERROR, "Error while disconnecting from tuya");
-		exit = EXIT_FAILURE;
-	}
-	log_event(LOGS_WARNING, "Device properly disconnected");
-	return exit;
 }
 
 error_t parse_opt(int key, char *arg, struct argp_state *state)

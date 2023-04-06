@@ -135,3 +135,14 @@ int write_file(char *data)
 	fclose(fptr);
 	return 0;
 }
+
+int tuya_deinit(tuya_mqtt_context_t **client)
+{
+	int exit = 0;
+	if (tuya_mqtt_disconnect(*client) || tuya_mqtt_deinit(*client)) {
+		log_event(LOGS_ERROR, "Error while disconnecting from tuya");
+		exit = EXIT_FAILURE;
+	}
+	log_event(LOGS_WARNING, "Device properly disconnected");
+	return exit;
+}
