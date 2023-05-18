@@ -67,7 +67,7 @@ int lua_ubus_get_memory(int *free_memory)
 }
 ```
 
-The C function (`tuya_iot_daemon/src/lua_utils.c`) creates a new Lua state and opens Lua libraries. It then loads the Lua script from the specified path. If the Lua script fails to load, it logs an error and returns an exit failure. Most of the code in it is error checking and loading libraries. The important parts are here: 1)`lua_getglobal(L, "ubus_get_memory")`. This calls Lua function inside the script file. 2) The returned value from Lua script will be inside `L` variable which was declared earlier and needs to be converted using `*free_memory = lua_tonumber(L, -1)`. 
+The C function (`tuya_iot_daemon/src/lua_utils.c`) creates a new Lua state and opens Lua libraries. It then loads the Lua script from the specified path. If the Lua script fails to load, it logs an error and returns an exit failure. Most of the code in it is error checking and loading libraries. The important parts are here: 1)`lua_getglobal(L, "ubus_get_memory")`. This calls Lua function inside the script file. 2) The returned value from Lua script will be inside `L` variable which was declared earlier and needs to be converted using `lua_tonumber(L, -1)`. 
 
 The function then calls the Lua function ubus_get_memory() and checks if it returned a number. If it didn't, it logs an error and returns an exit failure. If the Lua function executed successfully, the function updates the 'free_memory' pointer with the free memory fetched from the Lua script and returns an exit success.
 
