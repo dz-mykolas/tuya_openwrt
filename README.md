@@ -1,4 +1,4 @@
-# ubus_memory
+# Lua module inside C
 
 This module provides a Lua and C implementation for querying memory usage information from the ubus system on OpenWrt platforms. The Lua script communicates with the ubus system to get the memory info, and the C code wraps around the Lua code to provide a C interface for this functionality.
 Overview
@@ -6,7 +6,7 @@ Overview
 It is is made up of two parts. The first part is a Lua script, ubus_get_memory(), which connects to ubus and fetches system information including free memory. The second part is a C function, lua_ubus_get_memory(int *free_memory), which initializes a Lua interpreter, loads the Lua script, and then executes the Lua function to get the memory information.
 Lua Code
 
-## lua
+## Lua
 
 ```lua
 function ubus_get_memory()
@@ -32,7 +32,7 @@ Lua script(`tuya_iot_daemon/src/Lua/ubus_memory.lua`) first imports the ubus lib
 
 It then calls conn:call("system", "info", {}) to get the system information, and checks whether the system information contains memory info. If it does, it updates free_mem with the free memory value from the system information. Finally, it closes the connection and returns the free memory.
 
-## c
+## C
 
 ```c
 #include "lua_utils.h"
@@ -73,6 +73,6 @@ The C function (`tuya_iot_daemon/src/lua_utils.c`) creates a new Lua state and o
 
 The function then calls the Lua function ubus_get_memory() and checks if it returned a number. If it didn't, it logs an error and returns an exit failure. If the Lua function executed successfully, the function updates the 'free_memory' pointer with the free memory fetched from the Lua script and returns an exit success.
 
-# usage
+# Usage
 
 To use this module, simply include the C header file in your C code and call the function lua_ubus_get_memory(int *free_memory). Make sure the Lua script is located at the specified path (/usr/local/lib/ubus_memory.lua).
