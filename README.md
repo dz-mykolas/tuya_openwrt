@@ -1,10 +1,8 @@
 # Lua module inside C
 
 This module provides a Lua and C implementation for querying memory usage information from the ubus system on OpenWrt platforms. The Lua script communicates with the ubus system to get the memory info, and the C code wraps around the Lua code to provide a C interface for this functionality.
-Overview
 
 It is is made up of two parts. The first part is a Lua script, ubus_get_memory(), which connects to ubus and fetches system information including free memory. The second part is a C function, lua_ubus_get_memory(int *free_memory), which initializes a Lua interpreter, loads the Lua script, and then executes the Lua function to get the memory information.
-Lua Code
 
 ## Lua
 
