@@ -28,7 +28,7 @@ end
 
 Lua script (`tuya_iot_daemon/src/Lua/ubus_memory.lua`) first imports the ubus library. Then, it creates a connection to the ubus system. If the connection fails, it throws an error.
 
-It then calls conn:call("system", "info", {}) to get the system information, and checks whether the system information contains memory info. If it does, it updates free_mem with the free memory value from the system information. Finally, it closes the connection and returns the free memory.
+It then calls `conn:call("system", "info", {})` to get the system information, and checks whether the system information contains memory info. If it does, it updates `free_mem` with the free memory value from the system information. Finally, it closes the connection and returns the free memory.
 
 ## C
 
@@ -69,7 +69,7 @@ int lua_ubus_get_memory(int *free_memory)
 
 The C function (`tuya_iot_daemon/src/lua_utils.c`) creates a new Lua state and opens Lua libraries. It then loads the Lua script from the specified path. If the Lua script fails to load, it logs an error and returns an exit failure. Most of the code in it is error checking and loading libraries. The important parts are here: 1)`lua_getglobal(L, "ubus_get_memory")`. This calls Lua function inside the script file. 2) The returned value from Lua script will be inside `L` variable which was declared earlier and needs to be converted using `lua_tonumber(L, -1)`. 
 
-The function then calls the Lua function ubus_get_memory() and checks if it returned a number. If it didn't, it logs an error and returns an exit failure. If the Lua function executed successfully, the function updates the 'free_memory' pointer with the free memory fetched from the Lua script and returns an exit success.
+The function then calls the Lua function `ubus_get_memory()` and checks if it returned a number. If it didn't, it logs an error and returns an exit failure. If the Lua function executed successfully, the function updates the `free_memory` pointer with the free memory fetched from the Lua script and returns an exit success.
 
 # Usage
 
