@@ -13,7 +13,8 @@ LDLIBS:=\
 	-largp \
 	-lubus \
 	-lubox \
-	-lblobmsg_json
+	-lblobmsg_json \
+	-llua
 
 .PHONY: all clean $(BIN)
 

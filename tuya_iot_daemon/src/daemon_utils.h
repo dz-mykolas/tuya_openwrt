@@ -1,12 +1,17 @@
+#ifndef DAEMON_UTILS_H
+#define DAEMON_UTILS_H
+
 #include <sys/sysinfo.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <stdarg.h>
 
-#ifndef BECOME_DAEMON_H
-#define BECOME_DAEMON_H
+#define LOGS_ERROR   3
+#define LOGS_WARNING 4
+#define LOGS_NOTICE  5
 
 #define BD_NO_CHDIR	  01 /* Don't chdir ("/") */
 #define BD_NO_CLOSE_FILES 02 /* Don't close all open files */
@@ -21,7 +26,7 @@
 // returns 0 on success -1 on error
 int become_daemon(int flags);
 
-#endif
-
 unsigned long int ram_get_free();
-void log_event(int type, char *log);
+void log_event(int type, const char *format, ...);
+
+#endif

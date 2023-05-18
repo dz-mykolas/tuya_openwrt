@@ -59,12 +59,17 @@ unsigned long int ram_get_free()
 	return (info.freeram / 1024 / 1024);
 }
 
-void log_event(int type, char *log)
+void log_event(int type, const char *format, ...)
 {
 	setlogmask(LOG_UPTO(LOG_NOTICE));
-	openlog("tuya_daemon", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL0);
-	char buffer[100];
-	snprintf(buffer, 100, "%s", log);
+	openlog("tuya_iot_daemon", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL0);
+
+	char buffer[1024];
+	va_list args;
+	va_start(args, format);
+	vsnprintf(buffer, sizeof(buffer), format, args);
+	va_end(args);
+
 	syslog(type, "%s", buffer);
 	closelog();
 }

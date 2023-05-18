@@ -33,13 +33,12 @@ int main(int argc, char **argv)
 	int exit		    = 0;
 	if (tuya_init(&client, argv))
 		exit = 1;
-
 	/* INFINITE LOOP */
 	if (exit == 0)
 		program_loop(&client);
-
 	/* DISCONNECT */
 	if (tuya_deinit(&client))
 		return EXIT_FAILURE;
+
 	return EXIT_SUCCESS;
 }
