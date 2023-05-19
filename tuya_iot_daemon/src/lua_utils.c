@@ -1,75 +1,49 @@
 #include "lua_utils.h"
 
-int lua_open_module(int *free_memory)
-{
-    int status, result;
-	lua_State *L;
-	L = luaL_newstate();
-	luaL_openlibs(L);
+// int lua_open_module(int *free_memory)
+// {
+//     int status, result;
+// 	lua_State *L;
+// 	L = luaL_newstate();
+// 	luaL_openlibs(L);
     
-	status = luaL_loadfile(L, "/usr/local/lib/ubus_memory.lua");
-	if (status) {
-		log_event(LOGS_ERROR, "Couldn't load file: %s\n", lua_tostring(L, -1));
-		return EXIT_FAILURE;
-	}
-	if (lua_pcall(L, 0, 0, 0)) {
-		log_event(LOGS_ERROR, "Something went wrong 1\n");
-        return EXIT_FAILURE;
-	}
-    lua_getglobal(L, "ubus_get_memory");
-	if (lua_pcall(L, 0, 1, 1)) {
-		log_event(LOGS_ERROR, "Something went wrong inside Lua script\n");
-        return EXIT_FAILURE;
-	}
-    if (!lua_isnumber(L, -1)) {
-        log_event(LOGS_ERROR, "Lua script did not return a number");
-        return EXIT_FAILURE;
-    }
-    *free_memory = lua_tonumber(L, -1);
-	lua_close(L);
+// 	status = luaL_loadfile(L, "/usr/local/lib/ubus_memory.lua");
+// 	if (status) {
+// 		log_event(LOGS_ERROR, "Couldn't load file: %s\n", lua_tostring(L, -1));
+// 		return EXIT_FAILURE;
+// 	}
+// 	if (lua_pcall(L, 0, 0, 0)) {
+// 		log_event(LOGS_ERROR, "Something went wrong 1\n");
+//         return EXIT_FAILURE;
+// 	}
+//     lua_getglobal(L, "ubus_get_memory");
+// 	if (lua_pcall(L, 0, 1, 1)) {
+// 		log_event(LOGS_ERROR, "Something went wrong inside Lua script\n");
+//         return EXIT_FAILURE;
+// 	}
+//     if (!lua_isnumber(L, -1)) {
+//         log_event(LOGS_ERROR, "Lua script did not return a number");
+//         return EXIT_FAILURE;
+//     }
+//     *free_memory = lua_tonumber(L, -1);
+// 	lua_close(L);
 
-    return EXIT_SUCCESS;
-}
+//     return EXIT_SUCCESS;
+// }
 
-int lua_read_filenames(struct Lua_files *lfiles)
+struct LM_config lua_load_config(struct LM_module *module)
 {
-    DIR *d;
-    struct dirent *dir;
-    d = opendir("/usr/local/lib/tuya_modules");
-    if (!d) {
-        log_event(LOGS_ERROR, "Stopping module reading: failed to open directory");
-        return EXIT_FAILURE;
-    }
-
-    lfiles->file_count = 0;
-    while ((dir = readdir(d)) != NULL) {
-        if (lfiles->file_count >= MAX_LUA_MODULES) {
-            log_event(LOGS_WARNING, "Stopping module reading: module limit reached");
-            return EXIT_SUCCESS;
-        }
-        if (strcmp(dir->d_name, ".") == 0 || strcmp(dir->d_name, "..") == 0)
-            continue;
-        snprintf(lfiles->filenames[lfiles->file_count], NAME_MAX, "%s", dir->d_name);
-        lfiles->file_count++;
-    }
-    closedir(d);
-
-    return EXIT_SUCCESS;
-}
-
-struct Lua_config lua_load_config(lua_State **L)
-{
-    struct Lua_config cfg;
+    struct LM_config cfg;
     __int64_t temp_interval = 0;
     char buffer[NAME_MAX];
-    if (lua_istable(*L, -1)) {
-        lua_pushstring(*L, "type");
-        lua_gettable(*L, -2);
-        if (!lua_isstring(*L, -1)) {
+    if (lua_istable(module->L, -1)) {
+        lua_pushstring(module->L, "type");
+        lua_gettable(module->L, -2);
+        if (!lua_isstring(module->L, -1)) {
             log_event(LOGS_ERROR, "Expected 'type' to be a string");
             cfg.type = MODULE_AUTO;
         } else {
-            snprintf(buffer, NAME_MAX, "%s", lua_tostring(*L, -1));
+            snprintf(buffer, NAME_MAX, "%s", lua_tostring(module->L, -1));
             if (strcmp(buffer, "auto") == 0)
                 cfg.type = MODULE_AUTO;
             else if (strcmp(buffer, "action") == 0)
@@ -77,20 +51,20 @@ struct Lua_config lua_load_config(lua_State **L)
             else
                 cfg.type = MODULE_AUTO;
         }
-        lua_pop(*L, 1);
-        lua_pushstring(*L, "interval");
-        lua_gettable(*L, -2);
-        if (!lua_isnumber(*L, -1)) {
+        lua_pop(module->L, 1);
+        lua_pushstring(module->L, "interval");
+        lua_gettable(module->L, -2);
+        if (!lua_isnumber(module->L, -1)) {
             log_event(LOGS_ERROR, "Expected 'interval' to be a number");
             cfg.interval = 60;
         } else {
-            __int64_t temp_interval = lua_tonumber(*L, -1);
+            __int64_t temp_interval = lua_tonumber(module->L, -1);
             if (temp_interval > 0)
                 cfg.interval = temp_interval;
             else
                 cfg.interval = 60;
         }
-        lua_pop(*L, 1);
+        lua_pop(module->L, 1);
     } else {
         cfg.type = MODULE_AUTO;
         cfg.interval = 60;
@@ -98,14 +72,15 @@ struct Lua_config lua_load_config(lua_State **L)
     return cfg;
 }
 
-int lua_open_single_module(struct Lua_module *module)
+int lua_load_module(struct LM_module *module)
 {
+    int status;
     module->L = luaL_newstate();
     luaL_openlibs(module->L);
     char path[PATH_MAX];
     
     snprintf(path, PATH_MAX, "/usr/local/lib/tuya_modules/%s", module->filename);
-    status = luaL_loadfile(L, path);
+    status = luaL_loadfile(module->L, path);
     if (status) {
         log_event(LOGS_ERROR, "Stopping module open: couldn't load file: %s", lua_tostring(module->L, -1));
         lua_close(module->L);
@@ -129,38 +104,48 @@ int lua_open_single_module(struct Lua_module *module)
     if (lua_pcall(module->L, 0, 1, 0) != 0) {
         log_event(LOGS_ERROR, "Stopping module open: error running function 'tuya_config': %s, lua_tostring(L, -1)");
         lua_close(module->L);
-        lfiles.loaded[i] = false;
+        module->loaded = false;
         return EXIT_FAILURE;
     }
-    module->cfg = lua_load_config((module)->&L);
+    module->cfg = lua_load_config(module);
     module->loaded = true;
 
     return EXIT_SUCCESS;
 }
 
-int lua_open_modules(lua_State **L_states[MAX_LUA_MODULES])
+int lua_read_filenames(struct LM_module_list *modules)
 {
-    struct Lua_modules lmodules;
-    int status, i;
-    int file_count = 0;
-    if (lua_read_filenames(&lmodules) != EXIT_SUCCESS)
-        return EXIT_FAILURE;
-    if ((file_count = lmodules.module_count) < 1) {
-        log_event(LOGS_WARNING, "Stopping module open: no modules were read");
-        return EXIT_SUCCESS;
-    }
-    
-    *L_states = malloc(file_count * sizeof(lua_State *));
-    if (!*L_states) {
-        log_event(LOGS_ERROR, "Stopping module open: memory allocation failed");
+    DIR *d;
+    struct dirent *dir;
+    d = opendir("/usr/local/lib/tuya_modules");
+    if (!d) {
+        log_event(LOGS_ERROR, "Stopping module reading: failed to open directory");
         return EXIT_FAILURE;
     }
 
-    for (i = 0; i < file_count; ++i) {
-        lua_open_single_module(&(*L_states)[i], );
-        log_event(LOGS_ERROR, "%d: %s", i, &(lfiles[i]));
-        log_event(LOGS_ERROR, "Type: %d", lfiles.cfg[i].type);
-        log_event(LOGS_ERROR, "Interval: %lu", lfiles.cfg[i].interval);
+    modules->module_count = 0;
+    while ((dir = readdir(d)) != NULL) {
+        if (modules->module_count >= MAX_LUA_MODULES) {
+            log_event(LOGS_WARNING, "Stopping module reading: module limit reached");
+            return EXIT_SUCCESS;
+        }
+        if (strcmp(dir->d_name, ".") == 0 || strcmp(dir->d_name, "..") == 0)
+            continue;
+        snprintf(modules->module[modules->module_count].filename, NAME_MAX, "%s", dir->d_name);
+        modules->module_count++;
+    }
+    closedir(d);
+
+    return EXIT_SUCCESS;
+}
+
+int lua_open_modules(struct LM_module_list *modules)
+{
+    if (lua_read_filenames(modules) != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+    if (modules->module_count < 1) {
+        log_event(LOGS_WARNING, "Stopping module open: no modules were read");
+        return EXIT_SUCCESS;
     }
 
     return EXIT_SUCCESS;

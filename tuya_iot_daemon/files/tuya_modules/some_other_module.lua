@@ -19,6 +19,8 @@ function ubus_get_memory()
     return free_mem
 end
 
+
+
 function tuya_config()
     local config = {
         type = "auto",

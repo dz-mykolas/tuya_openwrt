@@ -14,6 +14,11 @@ void on_messages(tuya_mqtt_context_t *context, void *user_data, const tuyalink_m
 	printf("\r\n");
 }
 
+// TODO:
+// Modules are in void *user_data so read them and find modules
+// whose filenames matches action in message.
+// Then run these lua scripts and get back json which
+// will be sent back to tuya cloud.
 void tuya_action_switch(tuya_mqtt_context_t *context, const tuyalink_message_t *msg)
 {
     cJSON *json = cJSON_Parse(msg->data_string);
@@ -54,7 +59,7 @@ void tuya_action_write_file(char *data, char buffer[])
 //     snprintf(buffer, 100, "{\"ram_free\":{\"value\":\"error\"}}");
 // }
 
-int tuya_init(tuya_mqtt_context_t **client, char **argv)
+int tuya_init(tuya_mqtt_context_t **client, char **argv, struct LM_module_list *modules)
 {
 	const tuya_mqtt_config_t config = { .host	   = "m1.tuyacn.com",
 					    .port	   = 8883,
@@ -64,7 +69,9 @@ int tuya_init(tuya_mqtt_context_t **client, char **argv)
 					    .device_secret = argv[3],
 					    .keepalive	   = 60,
 					    .timeout_ms	   = 2000,
-					    .on_messages   = on_messages };
+					    .on_messages   = on_messages,
+                        .user_data = modules
+                        };
 
 	int ret;
 	ret = tuya_mqtt_init(*client, &config);
