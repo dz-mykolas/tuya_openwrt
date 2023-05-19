@@ -28,6 +28,11 @@ int main(int argc, char **argv)
 	struct arguments arguments = { 0 };
 	argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
+    /* MODULES INIT */
+    lua_State *L_states[MAX_LUA_MODULES];
+    if (lua_open_modules(&L_states) != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+
 	/* TUYA INIT */
 	tuya_mqtt_context_t *client = &client_instance;
 	int exit		    = 0;

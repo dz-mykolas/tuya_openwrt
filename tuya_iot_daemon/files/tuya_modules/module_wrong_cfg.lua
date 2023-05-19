@@ -1,3 +1,7 @@
+function module_init()
+    return ubus_get_memory()
+end
+
 function ubus_get_memory()
     ubus = require("ubus")
 
@@ -13,4 +17,12 @@ function ubus_get_memory()
     end
     conn:close()
     return free_mem
+end
+
+function tuya_config()
+    local config = {
+        type = "haha",
+        interval = -2,
+    }
+    return config
 end

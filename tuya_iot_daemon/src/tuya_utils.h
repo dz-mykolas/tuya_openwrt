@@ -1,3 +1,6 @@
+#ifndef TUYA_UTILS_H
+#define TUYA_UTILS_H
+
 #include <stdlib.h>
 
 #include "cJSON.h"
@@ -20,3 +23,5 @@ int tuya_init(tuya_mqtt_context_t **client, char **argv);
 int tuya_deinit(tuya_mqtt_context_t **client);
 
 int write_file(char *data);
+
+#endif

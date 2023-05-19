@@ -23,8 +23,8 @@ void tuya_action_switch(tuya_mqtt_context_t *context, const tuyalink_message_t *
         tuya_action_write_file(json->child->child->valuestring, buffer);
         tuyalink_thing_property_report(context, msg->device_id, buffer);
     } else if (strcmp(type, "get_ram") == 0) {
-        tuya_action_ram(buffer);
-        tuyalink_thing_property_report(context, msg->device_id, buffer);
+        //tuya_action_ram(buffer);
+        //tuyalink_thing_property_report(context, msg->device_id, buffer);
     } else {
         snprintf(buffer, 25, "%s", "Function does not exist");
         log_event(LOGS_ERROR, buffer);
@@ -43,16 +43,16 @@ void tuya_action_write_file(char *data, char buffer[])
     }
 }
 
-void tuya_action_ram(char buffer[])
-{
-    int free_memory	 = 0;
-    if (lua_ubus_get_memory(&free_memory) == EXIT_SUCCESS) {
-        snprintf(buffer, 100, "{\"ram_free\":{\"value\":\"%dMB\"}}",
-            free_memory / (1024 * 1024));
-        return;
-    }
-    snprintf(buffer, 100, "{\"ram_free\":{\"value\":\"error\"}}");
-}
+// void tuya_action_ram(char buffer[])
+// {
+//     int free_memory	 = 0;
+//     if (lua_ubus_get_memory(&free_memory) == EXIT_SUCCESS) {
+//         snprintf(buffer, 100, "{\"ram_free\":{\"value\":\"%dMB\"}}",
+//             free_memory / (1024 * 1024));
+//         return;
+//     }
+//     snprintf(buffer, 100, "{\"ram_free\":{\"value\":\"error\"}}");
+// }
 
 int tuya_init(tuya_mqtt_context_t **client, char **argv)
 {
