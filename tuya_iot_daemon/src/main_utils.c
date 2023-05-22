@@ -1,10 +1,31 @@
 #include "main_utils.h"
 
 volatile sig_atomic_t running = 1;
-void program_loop(tuya_mqtt_context_t **client)
+
+void run_on_interval(struct LM_module module, int interval)
 {
+    char buffer[MAX_BUFFER_SIZE];
+    if (module.loaded != true)
+        return;
+    else if ((interval % module.cfg.interval) == 0){
+        if (lua_run_module(&(module), buffer) != EXIT_SUCCESS)
+            lua_deinit_module(&(module));
+        else
+            log_event(LOGS_ERROR, "Result from buffer: %s", buffer);
+    }
+}
+
+void program_loop(tuya_mqtt_context_t **client, struct LM_module_list modules_auto)
+{
+    int interval = 1;
 	while (running) {
+        if (interval > MAX_LUA_INTERVAL)
+            interval = 1;
+        for (int i = 0; i < modules_auto.module_count; ++i) {
+            run_on_interval(modules_auto.module[i], interval);
+        }
 		tuya_mqtt_loop(*client);
+        interval++;
 	}
 }
 

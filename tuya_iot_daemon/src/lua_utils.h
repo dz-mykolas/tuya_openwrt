@@ -14,7 +14,9 @@
 
 #include "daemon_utils.h"
 
+#define MAX_LUA_INTERVAL 86400
 #define MAX_LUA_MODULES 30
+#define MAX_BUFFER_SIZE 4096
 
 enum LM_module_type {
     MODULE_AUTO,
@@ -38,6 +40,9 @@ struct LM_module_list {
     uint8_t module_count;
 };
 
+void lua_init_module(struct LM_module *module);
+void lua_deinit_module(struct LM_module *module);
+int lua_run_module(struct LM_module *module, char buffer[MAX_BUFFER_SIZE]);
 struct LM_config lua_load_config(struct LM_module *module);
 int lua_load_module(struct LM_module *module);
 int lua_read_filenames(struct LM_module_list *modules);

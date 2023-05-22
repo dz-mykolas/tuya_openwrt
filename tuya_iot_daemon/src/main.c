@@ -39,14 +39,42 @@ int main(int argc, char **argv)
     // by config.
     /* MODULES INIT */
     struct LM_module_list modules;
+    struct LM_module_list modules_auto;
+    modules_auto.module_count = 0;
+    struct LM_module_list modules_action;
+    modules_action.module_count = 0;
     lua_State *L_states[MAX_LUA_MODULES];
     if (lua_open_modules(&modules) != EXIT_SUCCESS)
         return EXIT_FAILURE;
     for (int i = 0; i < modules.module_count; ++i) {
-        log_event(LOGS_ERROR, "File: %s", modules.module[i].filename);
-        lua_load_module(&(modules.module[i]));
-        log_event(LOGS_ERROR, "Type: %lu", modules.module[i].cfg.type);
-        log_event(LOGS_ERROR, "Interval: %lu", modules.module[i].cfg.interval);
+        if (lua_load_module(&(modules.module[i])) != EXIT_SUCCESS)
+            continue;
+        char buffer[MAX_BUFFER_SIZE];
+        if (modules.module[i].cfg.type == MODULE_AUTO) {
+            modules_auto.module[modules_auto.module_count] = modules.module[i];
+            modules_auto.module_count++;
+        } else {
+            modules_action.module[modules_action.module_count] = modules.module[i];
+            modules_action.module_count++;
+        }
+    }
+    
+    log_event(LOGS_ERROR, "Auto modules: ");
+    for (int i = 0; i < modules_auto.module_count; ++i) {
+        log_event(LOGS_ERROR, "File: %s", modules_auto.module[i].filename);
+        log_event(LOGS_ERROR, "Type: %lu", modules_auto.module[i].cfg.type);
+        log_event(LOGS_ERROR, "Interval: %lu", modules_auto.module[i].cfg.interval);
+        lua_init_module(&(modules_auto.module[i]));
+    }
+    log_event(LOGS_ERROR, "Action modules: ");
+    for (int i = 0; i < modules_action.module_count; ++i) {
+        log_event(LOGS_ERROR, "File: %s", modules_action.module[i].filename);
+        log_event(LOGS_ERROR, "Type: %lu", modules_action.module[i].cfg.type);
+        log_event(LOGS_ERROR, "Interval: %lu", modules_action.module[i].cfg.interval);
+        char buffer[MAX_BUFFER_SIZE];
+        lua_init_module(&(modules_action.module[i]));
+        if (lua_run_module(&(modules_action.module[i]), buffer) == EXIT_SUCCESS)
+            log_event(LOGS_ERROR, "Result from buffer: %s", buffer);
     }
 
 	/* TUYA INIT */
@@ -56,10 +84,19 @@ int main(int argc, char **argv)
 		exit = 1;
 	/* INFINITE LOOP */
 	if (exit == 0)
-		program_loop(&client);
+		program_loop(&client, modules_auto);
 	/* DISCONNECT */
 	if (tuya_deinit(&client))
 		return EXIT_FAILURE;
+
+    for (int i = 0; i < modules_auto.module_count; ++i) {
+        if (modules_auto.module[i].loaded == true)
+            lua_deinit_module(&(modules_auto.module[i]));
+    }
+    for (int i = 0; i < modules_action.module_count; ++i) {
+        if (modules_action.module[i].loaded == true)
+            lua_deinit_module(&(modules_action.module[i]));
+    }
 
 	return EXIT_SUCCESS;
 }

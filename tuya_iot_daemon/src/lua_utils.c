@@ -31,6 +31,54 @@
 //     return EXIT_SUCCESS;
 // }
 
+void lua_init_module(struct LM_module *module)
+{
+    lua_settop(module->L, 0);
+    lua_getglobal(module->L, "module_init");
+    if (!lua_isfunction(module->L, -1)) {
+        log_event(LOGS_WARNING, "Module init: function 'module_init' does not exist");
+    }
+    else if (lua_pcall(module->L, 0, 1, 0) != 0) {
+        log_event(LOGS_WARNING, "Module init: function 'module_init': %s", lua_tostring(module->L, -1));
+    }
+    module->loaded = true;
+}
+
+void lua_deinit_module(struct LM_module *module)
+{
+    lua_settop(module->L, 0);
+    lua_getglobal(module->L, "module_deinit");
+    if (!lua_isfunction(module->L, -1))
+        log_event(LOGS_WARNING, "Module deinit: function 'module_deinit' does not exist");
+    else if (lua_pcall(module->L, 0, 1, 0) != 0)
+        log_event(LOGS_WARNING, "Module deinit: function 'module_deinit': %s", lua_tostring(module->L, -1));
+    lua_close(module->L);
+    module->loaded = false;
+}
+
+int lua_run_module(struct LM_module *module, char buffer[MAX_BUFFER_SIZE])
+{
+    lua_settop(module->L, 0);
+    lua_getglobal(module->L, "lua_main");
+    if (!lua_isfunction(module->L, -1)) {
+        log_event(LOGS_ERROR, "Stopping module execution: function 'lua_main' does not exist");
+        module->loaded = false;
+        return EXIT_FAILURE;
+    }
+    if (lua_pcall(module->L, 0, 1, 0) != 0) {
+        log_event(LOGS_ERROR, "Stopping module execution: function 'lua_main': %s", lua_tostring(module->L, -1));
+        module->loaded = false;
+        return EXIT_FAILURE;
+    }
+    if (!lua_isstring(module->L, -1)) {
+        log_event(LOGS_ERROR, "Lua script did not return a string");
+        return EXIT_FAILURE;
+    }
+    snprintf(buffer, MAX_BUFFER_SIZE, "%s", lua_tostring(module->L, -1));
+
+    return EXIT_SUCCESS;
+}
+
 struct LM_config lua_load_config(struct LM_module *module)
 {
     struct LM_config cfg;
@@ -59,10 +107,15 @@ struct LM_config lua_load_config(struct LM_module *module)
             cfg.interval = 60;
         } else {
             __int64_t temp_interval = lua_tonumber(module->L, -1);
-            if (temp_interval > 0)
-                cfg.interval = temp_interval;
-            else
+            if (temp_interval > MAX_LUA_INTERVAL) {
+                log_event(LOGS_WARNING, "Maximum interval is: %d", MAX_LUA_INTERVAL);
+                cfg.interval = MAX_LUA_INTERVAL;
+            } else if (temp_interval < 0) {
+                log_event(LOGS_WARNING, "Interval can not be lower than 0");
                 cfg.interval = 60;
+            } else {
+                cfg.interval = temp_interval;
+            }
         }
         lua_pop(module->L, 1);
     } else {
@@ -83,13 +136,11 @@ int lua_load_module(struct LM_module *module)
     status = luaL_loadfile(module->L, path);
     if (status) {
         log_event(LOGS_ERROR, "Stopping module open: couldn't load file: %s", lua_tostring(module->L, -1));
-        lua_close(module->L);
         module->loaded = false;
         return EXIT_FAILURE;
     }
     if (lua_pcall(module->L, 0, 0, 0)) {
         log_event(LOGS_ERROR, "Stopping module open: something went wrong during the file load");
-        lua_close(module->L);
         module->loaded = false;
         return EXIT_FAILURE;
     }
@@ -101,12 +152,9 @@ int lua_load_module(struct LM_module *module)
         module->cfg.interval = 60;
         return EXIT_SUCCESS;
     }
-    if (lua_pcall(module->L, 0, 1, 0) != 0) {
-        log_event(LOGS_ERROR, "Stopping module open: error running function 'tuya_config': %s, lua_tostring(L, -1)");
-        lua_close(module->L);
-        module->loaded = false;
-        return EXIT_FAILURE;
-    }
+    if (lua_pcall(module->L, 0, 1, 0) != 0)
+        log_event(LOGS_ERROR, "Stopping module open: error running function 'tuya_config': %s, setting default config", lua_tostring(module->L, -1));
+    
     module->cfg = lua_load_config(module);
     module->loaded = true;
 
