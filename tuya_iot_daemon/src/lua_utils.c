@@ -1,39 +1,7 @@
 #include "lua_utils.h"
 
-// int lua_open_module(int *free_memory)
-// {
-//     int status, result;
-// 	lua_State *L;
-// 	L = luaL_newstate();
-// 	luaL_openlibs(L);
-    
-// 	status = luaL_loadfile(L, "/usr/local/lib/ubus_memory.lua");
-// 	if (status) {
-// 		log_event(LOGS_ERROR, "Couldn't load file: %s\n", lua_tostring(L, -1));
-// 		return EXIT_FAILURE;
-// 	}
-// 	if (lua_pcall(L, 0, 0, 0)) {
-// 		log_event(LOGS_ERROR, "Something went wrong 1\n");
-//         return EXIT_FAILURE;
-// 	}
-//     lua_getglobal(L, "ubus_get_memory");
-// 	if (lua_pcall(L, 0, 1, 1)) {
-// 		log_event(LOGS_ERROR, "Something went wrong inside Lua script\n");
-//         return EXIT_FAILURE;
-// 	}
-//     if (!lua_isnumber(L, -1)) {
-//         log_event(LOGS_ERROR, "Lua script did not return a number");
-//         return EXIT_FAILURE;
-//     }
-//     *free_memory = lua_tonumber(L, -1);
-// 	lua_close(L);
-
-//     return EXIT_SUCCESS;
-// }
-
 void lua_init_module(struct LM_module *module)
 {
-    lua_settop(module->L, 0);
     lua_getglobal(module->L, "module_init");
     if (!lua_isfunction(module->L, -1)) {
         log_event(LOGS_WARNING, "Module init: function 'module_init' does not exist");
@@ -41,40 +9,42 @@ void lua_init_module(struct LM_module *module)
     else if (lua_pcall(module->L, 0, 1, 0) != 0) {
         log_event(LOGS_WARNING, "Module init: function 'module_init': %s", lua_tostring(module->L, -1));
     }
+    lua_pop(module->L,1);
     module->loaded = true;
 }
 
 void lua_deinit_module(struct LM_module *module)
 {
-    lua_settop(module->L, 0);
     lua_getglobal(module->L, "module_deinit");
     if (!lua_isfunction(module->L, -1))
         log_event(LOGS_WARNING, "Module deinit: function 'module_deinit' does not exist");
     else if (lua_pcall(module->L, 0, 1, 0) != 0)
         log_event(LOGS_WARNING, "Module deinit: function 'module_deinit': %s", lua_tostring(module->L, -1));
+    lua_pop(module->L,1);
     lua_close(module->L);
     module->loaded = false;
 }
 
 int lua_run_module(struct LM_module *module, char buffer[MAX_BUFFER_SIZE])
 {
-    lua_settop(module->L, 0);
     lua_getglobal(module->L, "lua_main");
     if (!lua_isfunction(module->L, -1)) {
-        log_event(LOGS_ERROR, "Stopping module execution: function 'lua_main' does not exist");
+        log_event(LOGS_ERROR, "Stopping module %s execution: function 'lua_main' does not exist", module->filename);
         module->loaded = false;
         return EXIT_FAILURE;
     }
     if (lua_pcall(module->L, 0, 1, 0) != 0) {
-        log_event(LOGS_ERROR, "Stopping module execution: function 'lua_main': %s", lua_tostring(module->L, -1));
+        log_event(LOGS_ERROR, "Stopping module %s execution: function 'lua_main': %s", module->filename, lua_tostring(module->L, -1));
         module->loaded = false;
         return EXIT_FAILURE;
     }
     if (!lua_isstring(module->L, -1)) {
-        log_event(LOGS_ERROR, "Lua script did not return a string");
+        log_event(LOGS_ERROR, "Lua module %s did not return a string", module->filename);
+        lua_pop(module->L,1);
         return EXIT_FAILURE;
     }
     snprintf(buffer, MAX_BUFFER_SIZE, "%s", lua_tostring(module->L, -1));
+    lua_pop(module->L,1);
 
     return EXIT_SUCCESS;
 }
@@ -118,9 +88,23 @@ struct LM_config lua_load_config(struct LM_module *module)
             }
         }
         lua_pop(module->L, 1);
+        lua_pushstring(module->L, "action_name");
+        lua_gettable(module->L, -2);
+        if (!lua_isstring(module->L, -1)) {
+            log_event(LOGS_ERROR, "Expected 'action_name' to be a string");
+            snprintf(cfg.action_name, NAME_MAX, "%s", "");
+        } else {
+            snprintf(buffer, NAME_MAX, "%s", lua_tostring(module->L, -1));
+            if (strcmp(buffer, "") == 0)
+                snprintf(cfg.action_name, NAME_MAX, "%s", "");
+            else
+                snprintf(cfg.action_name, NAME_MAX, "%s", buffer);
+        }
+        lua_pop(module->L, 1);
     } else {
         cfg.type = MODULE_AUTO;
         cfg.interval = 60;
+        snprintf(cfg.action_name, NAME_MAX, "%s", "");
     }
     return cfg;
 }
@@ -178,6 +162,9 @@ int lua_read_filenames(struct LM_module_list *modules)
             return EXIT_SUCCESS;
         }
         if (strcmp(dir->d_name, ".") == 0 || strcmp(dir->d_name, "..") == 0)
+            continue;
+        char *ext = strrchr(dir->d_name, '.');
+        if (!ext || strcmp(ext, ".lua") != 0)
             continue;
         snprintf(modules->module[modules->module_count].filename, NAME_MAX, "%s", dir->d_name);
         modules->module_count++;

@@ -28,14 +28,9 @@ int main(int argc, char **argv)
 	struct arguments arguments = { 0 };
 	argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
-    // TODO 1:
-    // Some modules are with type auto.
-    // Split them by type to different
-    // structs.
-    // TODO 2:
-    // Run auto with tuya_loop
+
     // TODO 3:
-    // Send action ones to user_date
+    // Send action ones to user_data
     // by config.
     /* MODULES INIT */
     struct LM_module_list modules;
@@ -59,14 +54,16 @@ int main(int argc, char **argv)
         }
     }
     
-    log_event(LOGS_ERROR, "Auto modules: ");
+    if (modules_auto.module_count > 0)
+        log_event(LOGS_ERROR, "Auto modules: ");
     for (int i = 0; i < modules_auto.module_count; ++i) {
         log_event(LOGS_ERROR, "File: %s", modules_auto.module[i].filename);
         log_event(LOGS_ERROR, "Type: %lu", modules_auto.module[i].cfg.type);
         log_event(LOGS_ERROR, "Interval: %lu", modules_auto.module[i].cfg.interval);
         lua_init_module(&(modules_auto.module[i]));
     }
-    log_event(LOGS_ERROR, "Action modules: ");
+    if (modules_action.module_count > 0)
+        log_event(LOGS_ERROR, "Action modules: ");    
     for (int i = 0; i < modules_action.module_count; ++i) {
         log_event(LOGS_ERROR, "File: %s", modules_action.module[i].filename);
         log_event(LOGS_ERROR, "Type: %lu", modules_action.module[i].cfg.type);
@@ -80,23 +77,20 @@ int main(int argc, char **argv)
 	/* TUYA INIT */
 	tuya_mqtt_context_t *client = &client_instance;
 	int exit = 0;
-	if (tuya_init(&client, argv, &modules))
+	if (tuya_init(&client, argv, &modules_action))
 		exit = 1;
 	/* INFINITE LOOP */
 	if (exit == 0)
-		program_loop(&client, modules_auto);
+		program_loop(&client, &modules_auto);
 	/* DISCONNECT */
 	if (tuya_deinit(&client))
 		return EXIT_FAILURE;
 
-    for (int i = 0; i < modules_auto.module_count; ++i) {
-        if (modules_auto.module[i].loaded == true)
-            lua_deinit_module(&(modules_auto.module[i]));
-    }
-    for (int i = 0; i < modules_action.module_count; ++i) {
-        if (modules_action.module[i].loaded == true)
-            lua_deinit_module(&(modules_action.module[i]));
+    for (int i = 0; i < modules.module_count; ++i) {
+        if (modules.module[i].loaded == true)
+            lua_deinit_module(&(modules.module[i]));
     }
 
+    log_event(LOGS_WARNING, "Program finished");
 	return EXIT_SUCCESS;
 }

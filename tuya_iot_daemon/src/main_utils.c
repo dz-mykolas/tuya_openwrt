@@ -2,27 +2,32 @@
 
 volatile sig_atomic_t running = 1;
 
-void run_on_interval(struct LM_module module, int interval)
+int run_on_interval(struct LM_module *module, int interval, char buffer[MAX_BUFFER_SIZE])
 {
-    char buffer[MAX_BUFFER_SIZE];
-    if (module.loaded != true)
-        return;
-    else if ((interval % module.cfg.interval) == 0){
-        if (lua_run_module(&(module), buffer) != EXIT_SUCCESS)
-            lua_deinit_module(&(module));
-        else
-            log_event(LOGS_ERROR, "Result from buffer: %s", buffer);
+    if (module->loaded != true)
+        return EXIT_FAILURE;
+    else if ((interval % module->cfg.interval) == 0) {
+        if (lua_run_module(module, buffer) != EXIT_SUCCESS) {
+            lua_deinit_module(module);
+            return EXIT_FAILURE;
+        } else {
+            return EXIT_SUCCESS;
+        }
     }
 }
 
-void program_loop(tuya_mqtt_context_t **client, struct LM_module_list modules_auto)
+void program_loop(tuya_mqtt_context_t **client, struct LM_module_list *modules_auto)
 {
+    char buffer[MAX_BUFFER_SIZE];
     int interval = 1;
 	while (running) {
         if (interval > MAX_LUA_INTERVAL)
             interval = 1;
-        for (int i = 0; i < modules_auto.module_count; ++i) {
-            run_on_interval(modules_auto.module[i], interval);
+        for (int i = 0; i < modules_auto->module_count; i++) {
+            if (run_on_interval(&(modules_auto->module[i]), interval, buffer) == EXIT_SUCCESS) {
+                log_event(LOGS_ERROR, "Result from buffer: %s", buffer);
+                tuyalink_thing_property_report(*client, (*client)->config.device_id, buffer);
+            }
         }
 		tuya_mqtt_loop(*client);
         interval++;

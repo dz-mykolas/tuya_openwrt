@@ -16,6 +16,6 @@ struct arguments {
 
 error_t parse_opt(int key, char *arg, struct argp_state *state);
 void sig_handler(int sig);
-void program_loop(tuya_mqtt_context_t **client, struct LM_module_list modules_auto);
+void program_loop(tuya_mqtt_context_t **client, struct LM_module_list *modules_auto);
 
 #endif

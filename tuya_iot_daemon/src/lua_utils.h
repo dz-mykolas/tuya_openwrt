@@ -26,6 +26,7 @@ enum LM_module_type {
 struct LM_config {
     uint8_t type;
     uint32_t interval;
+    char action_name[NAME_MAX];
 };
 
 struct LM_module {

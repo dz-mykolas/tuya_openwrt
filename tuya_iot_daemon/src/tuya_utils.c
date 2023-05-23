@@ -59,7 +59,7 @@ void tuya_action_write_file(char *data, char buffer[])
 //     snprintf(buffer, 100, "{\"ram_free\":{\"value\":\"error\"}}");
 // }
 
-int tuya_init(tuya_mqtt_context_t **client, char **argv, struct LM_module_list *modules)
+int tuya_init(tuya_mqtt_context_t **client, char **argv, struct LM_module_list *modules_action)
 {
 	const tuya_mqtt_config_t config = { .host	   = "m1.tuyacn.com",
 					    .port	   = 8883,
@@ -68,9 +68,9 @@ int tuya_init(tuya_mqtt_context_t **client, char **argv, struct LM_module_list *
 					    .device_id	   = argv[2],
 					    .device_secret = argv[3],
 					    .keepalive	   = 60,
-					    .timeout_ms	   = 2000,
+					    .timeout_ms	   = 1000,
 					    .on_messages   = on_messages,
-                        .user_data = modules
+                        .user_data = modules_action
                         };
 
 	int ret;
