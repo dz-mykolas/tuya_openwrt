@@ -20,6 +20,7 @@ void lua_deinit_module(struct LM_module *module)
         log_event(LOGS_WARNING, "Module deinit: function 'module_deinit' does not exist");
     else if (lua_pcall(module->L, 0, 1, 0) != 0)
         log_event(LOGS_WARNING, "Module deinit: function 'module_deinit': %s", lua_tostring(module->L, -1));
+    log_event(LOGS_WARNING, "Module %s deinit: function 'module_deinit'", module->filename);
     lua_pop(module->L,1);
     lua_close(module->L);
     module->loaded = false;
@@ -30,12 +31,10 @@ int lua_run_module(struct LM_module *module, char buffer[MAX_BUFFER_SIZE])
     lua_getglobal(module->L, "lua_main");
     if (!lua_isfunction(module->L, -1)) {
         log_event(LOGS_ERROR, "Stopping module %s execution: function 'lua_main' does not exist", module->filename);
-        module->loaded = false;
         return EXIT_FAILURE;
     }
     if (lua_pcall(module->L, 0, 1, 0) != 0) {
         log_event(LOGS_ERROR, "Stopping module %s execution: function 'lua_main': %s", module->filename, lua_tostring(module->L, -1));
-        module->loaded = false;
         return EXIT_FAILURE;
     }
     if (!lua_isstring(module->L, -1)) {
@@ -49,58 +48,75 @@ int lua_run_module(struct LM_module *module, char buffer[MAX_BUFFER_SIZE])
     return EXIT_SUCCESS;
 }
 
+static void __get_lua_config_type(struct LM_module *module, struct LM_config *cfg)
+{
+    char buffer[NAME_MAX];
+    lua_pushstring(module->L, "type");
+    lua_gettable(module->L, -2);
+    if (!lua_isstring(module->L, -1)) {
+        log_event(LOGS_ERROR, "Expected 'type' to be a string");
+        cfg->type = MODULE_AUTO;
+    } else {
+        snprintf(buffer, NAME_MAX, "%s", lua_tostring(module->L, -1));
+        if (strcmp(buffer, "auto") == 0)
+            cfg->type = MODULE_AUTO;
+        else if (strcmp(buffer, "action") == 0)
+            cfg->type = MODULE_ACTION;
+        else
+            cfg->type = MODULE_AUTO;
+    }
+    lua_pop(module->L, 1);
+}
+
+static void __get_lua_config_interval(struct LM_module *module, struct LM_config *cfg)
+{
+    char buffer[NAME_MAX];
+    lua_pushstring(module->L, "interval");
+    lua_gettable(module->L, -2);
+    if (!lua_isnumber(module->L, -1)) {
+        log_event(LOGS_ERROR, "Expected 'interval' to be a number");
+        cfg->interval = 60;
+    } else {
+        __int64_t temp_interval = lua_tonumber(module->L, -1);
+        if (temp_interval > MAX_LUA_INTERVAL) {
+            log_event(LOGS_WARNING, "Maximum interval is: %d", MAX_LUA_INTERVAL);
+            cfg->interval = MAX_LUA_INTERVAL;
+        } else if (temp_interval < 0) {
+            log_event(LOGS_WARNING, "Interval can not be lower than 0");
+            cfg->interval = 60;
+        } else {
+            cfg->interval = temp_interval;
+        }
+    }
+    lua_pop(module->L, 1);
+}
+
+static void __get_lua_config_action(struct LM_module *module, struct LM_config *cfg)
+{
+    char buffer[NAME_MAX];
+    lua_pushstring(module->L, "action_name");
+    lua_gettable(module->L, -2);
+    if (!lua_isstring(module->L, -1)) {
+        log_event(LOGS_ERROR, "Expected 'action_name' to be a string");
+        snprintf(cfg->action_name, NAME_MAX, "%s", "");
+    } else {
+        snprintf(buffer, NAME_MAX, "%s", lua_tostring(module->L, -1));
+        if (strcmp(buffer, "") == 0)
+            snprintf(cfg->action_name, NAME_MAX, "%s", "");
+        else
+            snprintf(cfg->action_name, NAME_MAX, "%s", buffer);
+    }
+    lua_pop(module->L, 1);
+}
+
 struct LM_config lua_load_config(struct LM_module *module)
 {
     struct LM_config cfg;
     __int64_t temp_interval = 0;
-    char buffer[NAME_MAX];
     if (lua_istable(module->L, -1)) {
-        lua_pushstring(module->L, "type");
-        lua_gettable(module->L, -2);
-        if (!lua_isstring(module->L, -1)) {
-            log_event(LOGS_ERROR, "Expected 'type' to be a string");
-            cfg.type = MODULE_AUTO;
-        } else {
-            snprintf(buffer, NAME_MAX, "%s", lua_tostring(module->L, -1));
-            if (strcmp(buffer, "auto") == 0)
-                cfg.type = MODULE_AUTO;
-            else if (strcmp(buffer, "action") == 0)
-                cfg.type = MODULE_ACTION;
-            else
-                cfg.type = MODULE_AUTO;
-        }
-        lua_pop(module->L, 1);
-        lua_pushstring(module->L, "interval");
-        lua_gettable(module->L, -2);
-        if (!lua_isnumber(module->L, -1)) {
-            log_event(LOGS_ERROR, "Expected 'interval' to be a number");
-            cfg.interval = 60;
-        } else {
-            __int64_t temp_interval = lua_tonumber(module->L, -1);
-            if (temp_interval > MAX_LUA_INTERVAL) {
-                log_event(LOGS_WARNING, "Maximum interval is: %d", MAX_LUA_INTERVAL);
-                cfg.interval = MAX_LUA_INTERVAL;
-            } else if (temp_interval < 0) {
-                log_event(LOGS_WARNING, "Interval can not be lower than 0");
-                cfg.interval = 60;
-            } else {
-                cfg.interval = temp_interval;
-            }
-        }
-        lua_pop(module->L, 1);
-        lua_pushstring(module->L, "action_name");
-        lua_gettable(module->L, -2);
-        if (!lua_isstring(module->L, -1)) {
-            log_event(LOGS_ERROR, "Expected 'action_name' to be a string");
-            snprintf(cfg.action_name, NAME_MAX, "%s", "");
-        } else {
-            snprintf(buffer, NAME_MAX, "%s", lua_tostring(module->L, -1));
-            if (strcmp(buffer, "") == 0)
-                snprintf(cfg.action_name, NAME_MAX, "%s", "");
-            else
-                snprintf(cfg.action_name, NAME_MAX, "%s", buffer);
-        }
-        lua_pop(module->L, 1);
+        __get_lua_config_type(module, &cfg);
+        __get_lua_config_interval(module, &cfg);
+        __get_lua_config_action(module, &cfg);
     } else {
         cfg.type = MODULE_AUTO;
         cfg.interval = 60;
@@ -119,25 +135,33 @@ int lua_load_module(struct LM_module *module)
     snprintf(path, PATH_MAX, "/usr/local/lib/tuya_modules/%s", module->filename);
     status = luaL_loadfile(module->L, path);
     if (status) {
-        log_event(LOGS_ERROR, "Stopping module open: couldn't load file: %s", lua_tostring(module->L, -1));
+        log_event(LOGS_ERROR, "Stopping module %s open: couldn't load file: %s", module->filename, lua_tostring(module->L, -1));
         module->loaded = false;
         return EXIT_FAILURE;
     }
     if (lua_pcall(module->L, 0, 0, 0)) {
-        log_event(LOGS_ERROR, "Stopping module open: something went wrong during the file load");
+        log_event(LOGS_ERROR, "Stopping module %s open: something went wrong during the file load", module->filename);
         module->loaded = false;
         return EXIT_FAILURE;
     }
+    lua_getglobal(module->L, "lua_main");
+    if (!lua_isfunction(module->L, -1)) {
+        log_event(LOGS_ERROR, "Stopping module %s open: function 'lua_main' does not exist, disabling module", module->filename);
+        module->loaded = false;
+        lua_close(module->L);
+        return EXIT_FAILURE;
+    }
+    lua_pop(module->L,1);
     lua_getglobal(module->L, "tuya_config");
     if (!lua_isfunction(module->L, -1)) {
-        log_event(LOGS_ERROR, "Stopping module open: function 'tuya_config' does not exist, setting default config");
+        log_event(LOGS_ERROR, "Stopping module %s open: function 'tuya_config' does not exist, setting default config", module->filename);
         module->loaded = true;
         module->cfg.type = MODULE_AUTO;
         module->cfg.interval = 60;
         return EXIT_SUCCESS;
     }
     if (lua_pcall(module->L, 0, 1, 0) != 0)
-        log_event(LOGS_ERROR, "Stopping module open: error running function 'tuya_config': %s, setting default config", lua_tostring(module->L, -1));
+        log_event(LOGS_ERROR, "Stopping module %s open: error running function 'tuya_config': %s, setting default config", module->filename, lua_tostring(module->L, -1));
     
     module->cfg = lua_load_config(module);
     module->loaded = true;

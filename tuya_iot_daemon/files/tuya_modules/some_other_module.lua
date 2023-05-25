@@ -1,5 +1,3 @@
-
-
 function ubus_get_memory()
     ubus = require("ubus")
 
@@ -16,8 +14,6 @@ function ubus_get_memory()
     conn:close()
     return free_mem
 end
-
-
 
 function tuya_config()
     local config = {

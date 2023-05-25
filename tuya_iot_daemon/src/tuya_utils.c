@@ -3,65 +3,79 @@
 
 void on_messages(tuya_mqtt_context_t *context, void *user_data, const tuyalink_message_t *msg)
 {
-	TY_LOGI("on message id:%s, type:%d, code:%d", msg->msgid, msg->type, msg->code);
+    struct LM_module_list *modules_auto = (struct LM_module_list *)context->config.user_data;
+
 	switch (msg->type) {
 	case THING_TYPE_ACTION_EXECUTE:
-        tuya_action_switch(context, msg);
+        tuya_action_switch(context, msg, modules_auto);
 		break;
 	default:
 		break;
 	}
-	printf("\r\n");
 }
 
-// TODO:
-// Modules are in void *user_data so read them and find modules
-// whose filenames matches action in message.
-// Then run these lua scripts and get back json which
-// will be sent back to tuya cloud.
-void tuya_action_switch(tuya_mqtt_context_t *context, const tuyalink_message_t *msg)
+void tuya_action_switch(tuya_mqtt_context_t *context, const tuyalink_message_t *msg, struct LM_module_list *modules_auto)
 {
     cJSON *json = cJSON_Parse(msg->data_string);
-    char *type  = json->child->next->valuestring;
-    char buffer[300];
-    if (strcmp(type, "file_write") == 0) {
-        tuya_action_write_file(json->child->child->valuestring, buffer);
-        tuyalink_thing_property_report(context, msg->device_id, buffer);
-    } else if (strcmp(type, "get_ram") == 0) {
-        //tuya_action_ram(buffer);
-        //tuyalink_thing_property_report(context, msg->device_id, buffer);
-    } else {
-        snprintf(buffer, 25, "%s", "Function does not exist");
-        log_event(LOGS_ERROR, buffer);
+    char *action_name  = json->child->next->valuestring;
+    char buffer[MAX_BUFFER_SIZE];
+
+    bool exists = false;
+    for (int i = 0; i < modules_auto->module_count; i++) {
+        if (strcmp(action_name, modules_auto->module[i].cfg.action_name) == 0 && modules_auto->module[i].cfg.type == MODULE_ACTION) {
+            exists = true;
+            lua_run_module(&(modules_auto->module[i]), buffer);
+            log_event(LOGS_ERROR, "Result from buffer: %s", buffer);
+            tuyalink_thing_property_report(context, msg->device_id, buffer);
+        }
     }
+    if (exists == false)
+        log_event(LOGS_ERROR, "Action does not exist");
+    
     cJSON_Delete(json);
 }
 
-void tuya_action_write_file(char *data, char buffer[])
+void tuya_ready_lua_modules(struct LM_module_list *modules, struct LM_module_list *modules_auto, struct LM_module_list *modules_action)
 {
-    if (write_file(data) == 1) {
-        snprintf(buffer, 100, "{\"file_write_error\":{\"value\":true}}");
-        log_event(LOGS_ERROR, "Failed to write to file");
-    } else {
-        snprintf(buffer, 100, "{\"file_write_error\":{\"value\":false}}");
-        log_event(LOGS_NOTICE, "Wrote to file");
+    modules_auto->module_count = 0;
+    modules_action->module_count = 0;
+
+    if (lua_open_modules(modules) != EXIT_SUCCESS)
+        return EXIT_FAILURE;
+    for (int i = 0; i < modules->module_count; ++i) {
+        if (lua_load_module(&(modules->module[i])) != EXIT_SUCCESS)
+            continue;
+        char buffer[MAX_BUFFER_SIZE];
+        if (modules->module[i].cfg.type == MODULE_AUTO) {
+            modules_auto->module[modules_auto->module_count] = modules->module[i];
+            modules_auto->module_count++;
+        } else {
+            modules_action->module[modules_action->module_count] = modules->module[i];
+            modules_action->module_count++;
+        }
+    }
+    
+    if (modules_auto->module_count > 0)
+        log_event(LOGS_ERROR, "Auto modules: ");
+    for (int i = 0; i < modules_auto->module_count; ++i) {
+        log_event(LOGS_ERROR, "File: %s", modules_auto->module[i].filename);
+        log_event(LOGS_ERROR, "Type: %lu", modules_auto->module[i].cfg.type);
+        log_event(LOGS_ERROR, "Interval: %lu", modules_auto->module[i].cfg.interval);
+        lua_init_module(&(modules_auto->module[i]));
+    }
+    if (modules_action->module_count > 0)
+        log_event(LOGS_ERROR, "Action modules: ");    
+    for (int i = 0; i < modules_action->module_count; ++i) {
+        log_event(LOGS_ERROR, "File: %s", modules_action->module[i].filename);
+        log_event(LOGS_ERROR, "Type: %lu", modules_action->module[i].cfg.type);
+        log_event(LOGS_ERROR, "Interval: %lu", modules_action->module[i].cfg.interval);
+        lua_init_module(&(modules_action->module[i]));
     }
 }
 
-// void tuya_action_ram(char buffer[])
-// {
-//     int free_memory	 = 0;
-//     if (lua_ubus_get_memory(&free_memory) == EXIT_SUCCESS) {
-//         snprintf(buffer, 100, "{\"ram_free\":{\"value\":\"%dMB\"}}",
-//             free_memory / (1024 * 1024));
-//         return;
-//     }
-//     snprintf(buffer, 100, "{\"ram_free\":{\"value\":\"error\"}}");
-// }
-
 int tuya_init(tuya_mqtt_context_t **client, char **argv, struct LM_module_list *modules_action)
 {
-	const tuya_mqtt_config_t config = { .host	   = "m1.tuyacn.com",
+	tuya_mqtt_config_t config = { .host	   = "m1.tuyacn.com",
 					    .port	   = 8883,
 					    .cacert	   = tuya_cacert_pem,
 					    .cacert_len	   = sizeof(tuya_cacert_pem),
@@ -88,20 +102,6 @@ int tuya_init(tuya_mqtt_context_t **client, char **argv, struct LM_module_list *
 	}
 	log_event(LOGS_NOTICE, "Device Connected");
 	return ret;
-}
-
-int write_file(char *data)
-{
-	FILE *fptr;
-	fptr = fopen("/tmp/example.txt", "w");
-	if (fptr == NULL) {
-		log_event(LOGS_WARNING, "Error writing!");
-		return 1;
-	}
-
-	fprintf(fptr, "%.*s\n", 300, data);
-	fclose(fptr);
-	return 0;
 }
 
 int tuya_deinit(tuya_mqtt_context_t **client)

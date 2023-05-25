@@ -43,7 +43,7 @@ end
 function tuya_config()
     local config = {
         type = "action",
-        interval = 5,
+        interval = 0,
         action_name = "get_ram",
     }
     
