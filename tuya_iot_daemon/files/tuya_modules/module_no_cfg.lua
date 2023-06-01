@@ -1,3 +1,7 @@
+function module_init()
+    
+end
+
 function ubus_get_memory()
     ubus = require("ubus")
 

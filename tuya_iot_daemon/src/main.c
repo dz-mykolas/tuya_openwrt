@@ -28,17 +28,29 @@ int main(int argc, char **argv)
 	struct arguments arguments = { 0 };
 	argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
+    /* MODULES INIT */
+    struct LM_module_list modules;
+    struct LM_module_list modules_auto;
+    struct LM_module_list modules_action;
+    tuya_ready_lua_modules(&modules, &modules_auto, &modules_action);
+
 	/* TUYA INIT */
 	tuya_mqtt_context_t *client = &client_instance;
-	int exit		    = 0;
-	if (tuya_init(&client, argv))
+	int exit = 0;
+	if (tuya_init(&client, argv, &modules_action))
 		exit = 1;
 	/* INFINITE LOOP */
 	if (exit == 0)
-		program_loop(&client);
+		program_loop(&client, &modules_auto);
 	/* DISCONNECT */
 	if (tuya_deinit(&client))
 		return EXIT_FAILURE;
 
+    for (int i = 0; i < modules.module_count; ++i) {
+        if (modules.module[i].loaded == true)
+            lua_deinit_module(&(modules.module[i]));
+    }
+
+    log_event(LOGS_WARNING, "Program finished");
 	return EXIT_SUCCESS;
 }
